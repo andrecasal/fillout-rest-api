@@ -38,7 +38,46 @@ const querySchema = z.object({
 		.optional(),
 })
 
-export async function loader({ request }: LoaderFunctionArgs) {
+const responseSchema = z.object({
+	responses: z.array(
+		z.object({
+			submissionId: z.string(),
+			submissionTime: z.string(),
+			lastUpdatedAt: z.string(),
+			questions: z.array(
+				z.object({
+					id: z.string(),
+					name: z.string(),
+					type: z.string(),
+					value: z.union([z.string(), z.number()]).nullable(),
+				}),
+			),
+			calculations: z.array(
+				z.object({
+					id: z.string(),
+					name: z.string(),
+					type: z.string(),
+					value: z.union([z.string(), z.number()]),
+				}),
+			),
+			urlParameters: z.array(
+				z.object({
+					id: z.string(),
+					name: z.string(),
+					value: z.union([z.string(), z.number()]),
+				}),
+			),
+			quiz: z.object({
+				score: z.coerce.number().optional(),
+				maxScore: z.coerce.number().optional(),
+			}),
+		}),
+	),
+	totalResponses: z.number(),
+	pageCount: z.number(),
+})
+
+export async function loader({ params, request }: LoaderFunctionArgs) {
 	// Avoid API call if the query params are invalid
 	const url = new URL(request.url)
 	const searchParams = Object.fromEntries(
@@ -60,6 +99,22 @@ export async function loader({ request }: LoaderFunctionArgs) {
 		filter?: ResponseFiltersType
 	}
 
+	// Fetch data from the API
+	const response = await fetch(
+		`https://api.fillout.com/v1/api/forms/${params.formId}/submissions?` +
+			new URLSearchParams({ ...(query as Record<string, string>) }),
+		{
+			headers: {
+				Authorization: `Bearer ${process.env.FILLOUT_API_KEY}`,
+			},
+		},
+	)
+	const parsedResponse = responseSchema.safeParse(await response.json())
+	if (!parsedResponse.success) {
+		return json(parsedResponse.error, { status: 500 })
+	}
+	const { data } = parsedResponse
+
 	// Return the data
-	return json({ filter, query })
+	return json({ data })
 }
