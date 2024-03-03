@@ -115,6 +115,46 @@ export async function loader({ params, request }: LoaderFunctionArgs) {
 	}
 	const { data } = parsedResponse
 
+	// Apply filters
+	const filteredResponses = filter
+		? data.responses.filter(response => {
+				return filter.every(clause => {
+					const question = response.questions.find(
+						q => q.id === clause.id,
+					)
+					if (!question) {
+						return false
+					}
+					switch (clause.condition) {
+						case 'equals':
+							return question.value === clause.value
+						case 'does_not_equal':
+							return question.value !== clause.value
+						case 'greater_than':
+							return (
+								question.value !== null &&
+								(question.type === 'DatePicker'
+									? new Date(question.value) >
+										new Date(clause.value)
+									: question.value > clause.value)
+							)
+						case 'less_than':
+							return (
+								question.value !== null &&
+								(question.type === 'DatePicker'
+									? new Date(question.value) <
+										new Date(clause.value)
+									: question.value < clause.value)
+							)
+						default:
+							return false
+					}
+				})
+			})
+		: data.responses
+	data.responses = filteredResponses
+	data.totalResponses = filteredResponses.length
+
 	// Return the data
 	return json({ data })
 }
